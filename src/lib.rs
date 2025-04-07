@@ -18,7 +18,7 @@ impl Masker {
         // Convert the PyString objects to Rust strings, escaping them for regex
         let res: PyResult<Vec<String>> = strings
             .into_iter()
-            .map(|s| s.extract::<String>().map(|s| escape(&s)))
+            .map(|s| s.extract::<&str>().map(escape))
             .collect();
 
         let strings: Vec<String> = res?;
