@@ -40,7 +40,8 @@ impl Masker {
 
         // Join the strings with '|' to create a regex pattern
         let pattern = format!("({})", strings.join("|"));
-        let regex = Regex::new(&pattern).unwrap();
+        let regex = Regex::new(&pattern)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
 
         Ok(Masker { regex, mask })
     }
