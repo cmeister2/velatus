@@ -14,7 +14,9 @@ license = { file = "LICENSE" }
 
 [project.optional-dependencies]
 tests = [
-    "pytest >= 8",
+    "pytest (>=8)",
+    "pytest-benchmark (>=5)",
+    "mypy (>=1.15.0)"
 ]
 
 [build-system]
@@ -25,5 +27,22 @@ build-backend = "maturin"
 python-source = "python"
 features = ["pyo3/extension-module"]
 
-[tool.pytest]
-sources = ["python"]
+[tool.pytest.ini_options]
+
+log_format = "%(asctime)s %(levelname)s %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+log_level = "DEBUG"
+
+log_cli_level = "DEBUG"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+log_cli_format = "%(asctime)s %(levelname)s %(message)s"
+
+[tool.mypy]
+files = [
+    "python/velatus",
+    "python/tests",
+]
+
+[[tool.mypy.overrides]]
+module = ["pytest_benchmark.*"]
+ignore_missing_imports = true
