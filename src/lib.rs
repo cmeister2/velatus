@@ -18,10 +18,17 @@ impl Masker {
         // Convert the PyString objects to Rust strings, escaping them for regex
         let res: PyResult<Vec<String>> = strings
             .into_iter()
-            .map(|s| s.extract::<String>().map(|s| escape(&s)))
+            .map(|s| s.extract::<&str>().map(escape))
             .collect();
 
         let strings: Vec<String> = res?;
+
+        // Fail if no strings are provided
+        if strings.is_empty() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "At least one string must be provided",
+            ));
+        }
 
         debug!("Creating masker for {} strings", strings.len());
 
@@ -33,7 +40,8 @@ impl Masker {
 
         // Join the strings with '|' to create a regex pattern
         let pattern = format!("({})", strings.join("|"));
-        let regex = Regex::new(&pattern).unwrap();
+        let regex = Regex::new(&pattern)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
 
         Ok(Masker { regex, mask })
     }
@@ -55,7 +63,7 @@ impl Masker {
     }
 }
 
-/// A Python module implemented in Rust.
+/// Velatus: A Python module for masking sensitive information in log messages.
 #[pymodule]
 fn velatus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
