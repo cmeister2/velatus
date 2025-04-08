@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use log::debug;
 use pyo3::{prelude::*, types::PyString};
 use regex::{escape, Regex};
@@ -54,11 +56,19 @@ impl Masker {
         let msg = msg_attr.extract::<&str>(py)?;
 
         // Replace any regex matches with the mask
-        let masked_msg = self.regex.replace_all(msg, &self.mask);
-
-        // Set the masked message back to the log_record
-        log_record.setattr(py, "msg", masked_msg)?;
-
+        //
+        // Rely on the fact that regex::Regex::replace_all returns
+        // Cow::Borrowed if no matches are found, and Cow::Owned if matches are found
+        // to be faster against normal lines which need no masking
+        match self.regex.replace_all(msg, &self.mask) {
+            Cow::Borrowed(_) => {
+                // No matches found, do nothing
+            },
+            Cow::Owned(masked_msg) => {
+                // Set the masked message back to the log_record
+                log_record.setattr(py, "msg", masked_msg)?;
+            }
+        }
         Ok(true)
     }
 }

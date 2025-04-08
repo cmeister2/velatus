@@ -14,7 +14,8 @@ license = { file = "LICENSE" }
 
 [project.optional-dependencies]
 tests = [
-    "pytest >= 8",
+    "pytest (>=8)",
+    "pytest-benchmark (>=5)",
 ]
 
 [build-system]

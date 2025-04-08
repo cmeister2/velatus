@@ -45,6 +45,12 @@ class LightLogRecord:
             "This is a test message with \\ and \\",
             "This is a test message with [MASKED] and [MASKED]",
         ),
+        (
+            None,
+            ["xyz"],
+            "This is a test message without a secret",
+            "This is a test message without a secret",
+        )
     ],
 )
 def test_masker(mask, strings_to_mask, log_record, expected):
