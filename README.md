@@ -2,6 +2,8 @@
 
 velatus is a Python library written in Rust for fast log masking/filtering of secrets.
 
+It is useful when you have a lot of secrets to match, when a simple string-replace may not be performant.
+
 ## Basic usage
 
 ```python
@@ -28,4 +30,4 @@ INFO:root:Printing out [MASKED], [MASKED]
 
 velatus consists of a `Masker` class which is callable and written in Rust using pyo3. It may be installed as a filter on a logging Handler with `addFilter`.
 
-Under the covers, the `Masker` compiles the set of strings to a regular expression, then substitutes all matches with the configured masking value.
+Under the covers, the `Masker` compiles the set of strings to a regular expression using the `regex` library, then substitutes all matches with the configured masking value.
