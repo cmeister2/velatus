@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def secret_env() -> list[str, str]:
+def secret_env() -> list[str]:
     """Fixture to provide a list of secrets"""
     secrets = [
         "my_secret_key",
@@ -45,7 +45,7 @@ class QuietHandler(logging.Handler):
 
 
 def string_secret_filtering(
-    secret_env: list[str, str],
+    secret_env: list[str],
     handlers: list[logging.Handler],
 ) -> None:
     """Configure string secrets filtering for the given handlers"""
@@ -75,7 +75,7 @@ def log_many_messages(logger: logging.Logger) -> None:
 )
 def test_benchmark_string_secret_filtering(
     benchmark: BenchmarkFixture,
-    secret_env: list[str, str],
+    secret_env: list[str],
 ) -> None:
     """Test the string_secret_filtering function"""
     # Create a logger
@@ -102,7 +102,7 @@ def test_benchmark_string_secret_filtering(
     warmup=True,
 )
 def test_benchmark_mask_handlers(
-    secret_env: list[str, str],
+    secret_env: list[str],
     benchmark: BenchmarkFixture,
 ) -> None:
     """Test the mask_handlers function"""
