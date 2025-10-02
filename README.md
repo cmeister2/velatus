@@ -28,6 +28,8 @@ INFO:root:Printing out [MASKED], [MASKED]
 
 ## Design
 
-velatus consists of a `Masker` class which is callable and written in Rust using pyo3. It may be installed as a filter on a logging Handler with `addFilter`.
+velatus ships a `SecretFormatter` implemented in Rust with pyo3. It wraps any existing `logging.Formatter`, so you can attach it to handlers via `setFormatter` without losing their formatting configuration.
 
-Under the covers, the `Masker` compiles the set of strings to a regular expression using the `regex` library, then substitutes all matches with the configured masking value.
+Under the covers, the `SecretFormatter` compiles the set of strings into a single regular expression using the `regex` crate, then substitutes every match with `[MASKED]` (or a custom replacement if you provide one).
+
+To mask secrets in uncaught exceptions as well, call `velatus.mask_exceptions(secrets)` after installing the handler formatter. This replaces `sys.excepthook` so tracebacks written to stderr are redacted before they reach the console or logs.
