@@ -1,87 +1,143 @@
 use std::borrow::Cow;
 
 use log::debug;
-use pyo3::{prelude::*, types::{PyBytes, PyString}};
+use pyo3::{prelude::*, types::PyString};
 use regex::{escape, Regex};
 
-// Create a callable class that stores a masking regex
+// Create a logging Formatter that masks secrets.
 #[pyclass]
-struct Masker {
+struct SecretFormatter {
     regex: Regex,
+    formatter: Py<PyAny>,
     mask: String,
 }
 
 #[pymethods]
-impl Masker {
-    /// Create a new Masker instance.
+impl SecretFormatter {
+    /// Create a new SecretFormatter instance.
     #[new]
-    #[pyo3(signature = (strings, mask=None))]
-    pub fn new(strings: Vec<Bound<PyString>>, mask: Option<Bound<PyString>>) -> PyResult<Self> {
-        // Convert the PyString objects to Rust strings, escaping them for regex
-        let res: PyResult<Vec<String>> = strings
+    #[pyo3(signature = (secrets, mask=None, existing_formatter=None))]
+    pub fn new(
+        py: Python<'_>,
+        secrets: Vec<Bound<PyString>>,
+        mask: Option<String>,
+        existing_formatter: Option<Py<PyAny>>,
+    ) -> PyResult<Self> {
+        Self::construct(py, secrets, mask, existing_formatter)
+    }
+
+    /// Format the log record and mask secrets in the resulting message.
+    pub fn format(&self, py: Python<'_>, record: Bound<PyAny>) -> PyResult<String> {
+        // Format the log record using the underlying formatter
+        let formatter = self.formatter.bind(py);
+        let formatted = formatter
+            .call_method1("format", (record,))?
+            .unbind();
+        let formatted = formatted.bind(py);
+
+        // Get the formatted message as a string
+        let message = if let Ok(string) = formatted.downcast::<PyString>() {
+            string.extract::<String>()?
+        } else {
+            // The response from the formatter should be a string, but if it's not, fall back to calling str()
+            formatted.str()?.extract::<String>()?
+        };
+
+        Ok(self.redact(message))
+    }
+
+    /// Redact secrets from exceptions and write the traceback to stderr.
+    pub fn handle_exception(
+        &self,
+        py: Python<'_>,
+        exc_type: Bound<PyAny>,
+        exc_value: Bound<PyAny>,
+        exc_traceback: Option<Bound<PyAny>>,
+    ) -> PyResult<()> {
+        let original_message = exc_value.str()?.extract::<String>()?;
+        let redacted_message = self.redact(original_message);
+        let redacted_exception = exc_type.call1((redacted_message.clone(),))?;
+
+        let traceback_module = py.import("traceback")?;
+
+        let tb_lines: Vec<String> = traceback_module
+            .call_method1(
+                "format_exception",
+                (exc_type, redacted_exception, exc_traceback),
+            )?
+            .extract()?;
+
+        let joined = tb_lines.join("");
+        let sys_module = py.import("sys")?;
+        let stderr = sys_module.getattr("stderr")?;
+        stderr.call_method1("write", (joined,))?;
+
+        Ok(())
+    }
+}
+
+impl SecretFormatter {
+    fn construct(
+        py: Python<'_>,
+        secrets: Vec<Bound<PyString>>,
+        mask: Option<String>,
+        existing_formatter: Option<Py<PyAny>>,
+    ) -> PyResult<Self> {
+        let escaped: PyResult<Vec<String>> = secrets
             .into_iter()
             .map(|s| s.extract::<&str>().map(escape))
             .collect();
 
-        let strings: Vec<String> = res?;
+        let secrets = escaped?;
 
-        // Fail if no strings are provided
-        if strings.is_empty() {
+        if secrets.is_empty() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "At least one string must be provided",
+                "At least one secret must be provided",
             ));
         }
 
-        debug!("Creating masker for {} strings", strings.len());
+        debug!("Creating secret formatter for {} secrets", secrets.len());
 
-        // If a mask is provided, use it; otherwise, default to [MASKED]
-        let mask = match mask {
-            Some(m) => m.extract::<String>()?,
-            None => "[MASKED]".to_string(),
+        let pattern = secrets.join("|");
+
+        let pattern = format!("({pattern})");
+        let regex = Regex::new(&pattern)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+
+        let formatter = match existing_formatter {
+            Some(f) => f,
+            None => {
+                let logging = py.import("logging")?;
+                logging
+                    .getattr("Formatter")?
+                    .call0()?
+                    .unbind()
+            }
         };
 
-        // Join the strings with '|' to create a regex pattern
-        let pattern = format!("({})", strings.join("|"));
-        let regex = Regex::new(&pattern)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
-
-        Ok(Masker { regex, mask })
+        Ok(SecretFormatter {
+            regex,
+            formatter,
+            mask: mask.unwrap_or_else(|| "[MASKED]".to_string()),
+        })
     }
 
-    /// Mask the log record's message using the regex.
-    pub fn __call__(&self, log_record: Bound<PyAny>) -> PyResult<bool> {
-        // The log_record is expected to be a logging.LogRecord object
-        // Extract the message from the log_record
-        let msg_attr = log_record.getattr("msg")?;
-
-        let msg = if let Ok(string) = msg_attr.downcast::<PyString>() {
-            // If the message is a string, extract it directly
-            string.extract::<String>()?
-        } else if let Ok(bytes) = msg_attr.downcast::<PyBytes>() {
-            // If the message is a bytes object, decode it to a string and extract it
-            // This is necessary because the regex operates on strings
-            bytes.call_method1("decode", ("utf-8",))?.extract::<String>()?
-        }
-        else {
-            // If the message is neither a string nor bytes, call str() on the object
-            msg_attr.call_method0("__str__")?.extract::<String>()?
-        };
-
+    fn redact(&self, message: String) -> String {
         // Replace any regex matches with the mask
         //
         // Rely on the fact that regex::Regex::replace_all returns
         // Cow::Borrowed if no matches are found, and Cow::Owned if matches are found
         // to be faster against normal lines which need no masking
-        match self.regex.replace_all(&msg, &self.mask) {
+        match self.regex.replace_all(&message, &self.mask) {
             Cow::Borrowed(_) => {
                 // No matches found, do nothing
+                message
             },
             Cow::Owned(masked_msg) => {
-                // Set the masked message back to the log_record
-                log_record.setattr("msg", masked_msg)?;
+                // Return the replacement string.
+                masked_msg
             }
         }
-        Ok(true)
     }
 }
 
@@ -89,6 +145,6 @@ impl Masker {
 #[pymodule]
 fn velatus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
-    m.add_class::<Masker>()?;
+    m.add_class::<SecretFormatter>()?;
     Ok(())
 }
