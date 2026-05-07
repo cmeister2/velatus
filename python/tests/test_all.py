@@ -86,6 +86,37 @@ def test_secret_formatter_requires_secret() -> None:
         velatus.SecretFormatter(secrets=[])
 
 
+def test_secret_formatter_rejects_empty_secret() -> None:
+    """SecretFormatter should reject empty strings as secrets."""
+    with pytest.raises(ValueError, match="must not be empty"):
+        velatus.SecretFormatter(secrets=[""])
+
+
+def test_secret_formatter_uses_longest_overlapping_secret() -> None:
+    """SecretFormatter should not leak suffixes from overlapping secrets."""
+    formatter = velatus.SecretFormatter(
+        secrets=["abc", "abcd"],
+        existing_formatter=logging.Formatter("%(message)s"),
+    )
+
+    record = make_log_record("Secret value abcd present")
+    masked = formatter.format(record)
+    assert masked == "Secret value [MASKED] present"
+
+
+def test_secret_formatter_treats_custom_mask_as_literal() -> None:
+    """SecretFormatter should not interpret $ sequences in custom masks."""
+    formatter = velatus.SecretFormatter(
+        secrets=["xxx"],
+        mask="$1",
+        existing_formatter=logging.Formatter("%(message)s"),
+    )
+
+    record = make_log_record("Secret value xxx present")
+    masked = formatter.format(record)
+    assert masked == "Secret value $1 present"
+
+
 def test_mask_handlers_installs_formatter() -> None:
     """mask_handlers should wrap handlers with SecretFormatter."""
     handler = logging.StreamHandler(io.StringIO())
@@ -105,6 +136,14 @@ def test_mask_handlers_requires_secrets() -> None:
         velatus.mask_handlers([], [])
 
 
+def test_mask_handlers_rejects_empty_secret() -> None:
+    """mask_handlers should reject empty strings as secrets."""
+    handler = logging.StreamHandler(io.StringIO())
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        velatus.mask_handlers([""], [handler])
+
+
 def test_mask_exceptions_masks_sys_excepthook() -> None:
     """mask_exceptions should redact secrets written by sys.excepthook."""
     original_hook = sys.excepthook
@@ -121,6 +160,33 @@ def test_mask_exceptions_masks_sys_excepthook() -> None:
         output = buffer.getvalue()
         assert "[MASKED]" in output
         assert "supersecret" not in output
+    finally:
+        sys.stderr = original_stderr
+        sys.excepthook = original_hook
+
+
+def test_mask_exceptions_handles_custom_exception_constructor() -> None:
+    """mask_exceptions should not rebuild exceptions while redacting."""
+
+    class CustomError(Exception):
+        def __init__(self, message: str, code: int) -> None:
+            super().__init__(message, code)
+
+    original_hook = sys.excepthook
+    original_stderr = sys.stderr
+
+    try:
+        velatus.mask_exceptions(["supersecret"])
+
+        buffer = io.StringIO()
+        sys.stderr = buffer
+
+        sys.excepthook(CustomError, CustomError("supersecret", 7), None)
+
+        output = buffer.getvalue()
+        assert "[MASKED]" in output
+        assert "supersecret" not in output
+        assert "CustomError" in output
     finally:
         sys.stderr = original_stderr
         sys.excepthook = original_hook

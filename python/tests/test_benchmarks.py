@@ -22,12 +22,7 @@ def secret_env() -> list[str]:
         "line2",
         "line3",
     ]
-    secrets.extend(
-        [
-            f"xxx{i}"
-            for i in range(1, 41)
-        ]
-    )
+    secrets.extend([f"xxx{i}" for i in range(1, 41)])
     return secrets
 
 

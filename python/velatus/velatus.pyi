@@ -1,7 +1,5 @@
 import logging
 from types import TracebackType
-from typing import Any
-
 
 class SecretFormatter(logging.Formatter):
     """Formatter that masks sensitive information in log messages."""
@@ -12,9 +10,7 @@ class SecretFormatter(logging.Formatter):
         mask: str | None = None,
         existing_formatter: logging.Formatter | None = None,
     ) -> None: ...
-
     def format(self, record: logging.LogRecord) -> str: ...
-
     def handle_exception(
         self,
         exc_type: type[BaseException],
