@@ -23,10 +23,10 @@ jobs:
       new-release: ${{ steps.release.outputs.new_release }}
       version: ${{ steps.build-version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "lts/*"
       - run: npm ci
@@ -190,7 +190,6 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: ${{ needs.check-release.outputs.new-release == 'true' }}
     needs: [check-release, linux, musllinux, windows, macos, sdist]
     permissions:
       id-token: write
@@ -202,11 +201,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
       - name: Generate artifact attestation
+        if: needs.check-release.outputs.new-release == 'true'
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'wheels-*/*'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
       - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
-        with:
-          command: upload
-          args: --non-interactive --skip-existing wheels-*/*
+        run: uv publish --trusted-publishing always ${{ needs.check-release.outputs.new-release != 'true' && '--dry-run' || '' }} 'wheels-*/*'
