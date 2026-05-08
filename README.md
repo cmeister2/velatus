@@ -1,8 +1,8 @@
 # velatus
 
-velatus is a Python library written in Rust for fast log masking/filtering of secrets.
+velatus is a Python library written in Rust for fast log masking and filtering of secrets.
 
-It is useful when you have a lot of secrets to match, when a simple string-replace may not be performant.
+It helps when you have a long list of secrets, and a simple string replace loop starts to get expensive.
 
 ## Basic usage
 
@@ -28,8 +28,14 @@ INFO:root:Printing out [MASKED], [MASKED]
 
 ## Design
 
-velatus ships a `SecretFormatter` implemented in Rust with pyo3. It wraps any existing `logging.Formatter`, so you can attach it to handlers via `setFormatter` without losing their formatting configuration.
+velatus ships a `SecretFormatter` implemented in Rust with PyO3. It wraps an existing `logging.Formatter`, so handlers keep their normal logging format while the final text gets redacted.
 
-Under the covers, the `SecretFormatter` compiles the set of strings into a single regular expression using the `regex` crate, then substitutes every match with `[MASKED]` (or a custom replacement if you provide one).
+The formatter compiles the secret strings into an Aho-Corasick matcher. Each formatted log message is scanned once, even when you have many secrets.
 
-To mask secrets in uncaught exceptions as well, call `velatus.mask_exceptions(secrets)` after installing the handler formatter. This replaces `sys.excepthook` so tracebacks written to stderr are redacted before they reach the console or logs.
+Matching uses leftmost-longest semantics. If both `abc` and `abcd` are configured as secrets, `abcd` is masked as one complete match even if `abc` appears first in the input list.
+
+By default, velatus replaces matches with `[MASKED]`. You can pass a custom `mask` to `SecretFormatter`, `mask_handlers`, or `mask_exceptions`; velatus treats it as literal text.
+
+Empty secret lists and empty string secrets are rejected with `ValueError`.
+
+To mask secrets in uncaught exceptions too, call `velatus.mask_exceptions(secrets)` after installing the handler formatter. This replaces `sys.excepthook`, formats the traceback, redacts it, and writes the redacted traceback to stderr.
