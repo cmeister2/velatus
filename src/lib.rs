@@ -133,7 +133,7 @@ fn format_record(formatter: &Py<PyAny>, py: Python<'_>, record: Bound<PyAny>) ->
     let formatted = formatter.call_method1("format", (record,))?.unbind();
     let formatted = formatted.bind(py);
 
-    if let Ok(string) = formatted.downcast::<PyString>() {
+    if let Ok(string) = formatted.cast::<PyString>() {
         string.extract::<String>()
     } else {
         formatted.str()?.extract::<String>()
