@@ -209,3 +209,12 @@ jobs:
         uses: astral-sh/setup-uv@v8.1.0
       - name: Publish to PyPI
         run: uv publish --trusted-publishing always ${{ needs.check-release.outputs.new-release != 'true' && '--dry-run' || '' }} 'wheels-*/*'
+
+  success:
+    # Success stage for RequireStatus check.
+    name: Success
+    runs-on: ubuntu-latest
+    needs: [release]
+    steps:
+      - name: Success
+        run: echo "CI completed successfully!"
