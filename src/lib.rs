@@ -19,7 +19,7 @@ struct SecretFormatter {
 
 #[pymethods]
 impl SecretFormatter {
-    /// Create a new SecretFormatter instance.
+    /// Create a new `SecretFormatter` instance.
     #[new]
     #[pyo3(signature = (secrets, mask=None, existing_formatter=None))]
     fn new(
@@ -37,12 +37,11 @@ impl SecretFormatter {
             .build(secrets.iter().map(String::as_str))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
-        let formatter = match existing_formatter {
-            Some(formatter) => formatter,
-            None => {
-                let logging = py.import("logging")?;
-                logging.getattr("Formatter")?.call0()?.unbind()
-            }
+        let formatter = if let Some(formatter) = existing_formatter {
+            formatter
+        } else {
+            let logging = py.import("logging")?;
+            logging.getattr("Formatter")?.call0()?.unbind()
         };
 
         Ok(SecretFormatter {
@@ -129,14 +128,13 @@ fn normalize_secrets(secrets: Vec<Bound<PyString>>) -> PyResult<Vec<String>> {
 
 /// Delegate to the Python formatter and return the resulting string.
 fn format_record(formatter: &Py<PyAny>, py: Python<'_>, record: Bound<PyAny>) -> PyResult<String> {
-    let formatter = formatter.bind(py);
-    let formatted = formatter.call_method1("format", (record,))?.unbind();
-    let formatted = formatted.bind(py);
+    let result = formatter.bind(py).call_method1("format", (record,))?.unbind();
+    let bound = result.bind(py);
 
-    if let Ok(string) = formatted.cast::<PyString>() {
+    if let Ok(string) = bound.cast::<PyString>() {
         string.extract::<String>()
     } else {
-        formatted.str()?.extract::<String>()
+        bound.str()?.extract::<String>()
     }
 }
 
