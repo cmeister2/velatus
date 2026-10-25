@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 aho-corasick = "1"
 log = "0.4"
-pyo3 = "0.30"
+pyo3 = "0.29"
 pyo3-log = "0.13"
 
 [lints.rust]

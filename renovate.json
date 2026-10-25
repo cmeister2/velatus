@@ -2,5 +2,13 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>cmeister2/renovate"
+  ],
+  "packageRules": [
+    {
+      "description": "Keep PyO3 compatible with pyo3-log until its supported range includes 0.30",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["pyo3"],
+      "allowedVersions": "<0.30"
+    }
   ]
 }
