@@ -30,6 +30,7 @@ jobs:
         with:
           node-version: "lts/*"
       - run: npm ci
+      - run: npm test
       - name: Release
         id: release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
