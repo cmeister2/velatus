@@ -5,9 +5,20 @@
   ],
   "packageRules": [
     {
+      "description": "Work around npm/cli#9800 when regenerating lockfiles with bundled dependencies",
+      "matchManagers": [
+        "npm"
+      ],
+      "skipInstalls": false
+    },
+    {
       "description": "Keep PyO3 compatible with pyo3-log until its supported range includes 0.30",
-      "matchManagers": ["cargo"],
-      "matchPackageNames": ["pyo3"],
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchPackageNames": [
+        "pyo3"
+      ],
       "allowedVersions": "<0.30"
     }
   ]
